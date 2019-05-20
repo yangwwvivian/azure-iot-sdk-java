@@ -635,6 +635,10 @@ public final class DeviceClient extends InternalClient implements Closeable
                     return;
                 }
             }
+            case SET_MQTT_KEEP_ALIVE_PERIOD:
+            {
+                break; //just call super later
+            }
             default:
             {
                 throw new IllegalArgumentException("optionName is unknown = " + optionName);

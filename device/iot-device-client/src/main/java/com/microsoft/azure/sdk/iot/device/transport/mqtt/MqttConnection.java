@@ -12,7 +12,6 @@ import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import javax.net.ssl.SSLContext;
-import java.io.IOException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class MqttConnection
@@ -24,7 +23,7 @@ public class MqttConnection
     private MqttCallback mqttCallback;
 
     //mqtt connection options
-    private static final int KEEP_ALIVE_INTERVAL = 230;
+    private static final int DEFAULT_KEEP_ALIVE_INTERVAL = 230;
     private static final int MQTT_VERSION = 4;
     private static final boolean SET_CLEAN_SESSION = false;
     static final int QOS = 1;
@@ -43,7 +42,7 @@ public class MqttConnection
      * @throws IllegalArgumentException is thrown if any of the parameters are null or empty
      * @throws TransportException when Mqtt async client cannot be instantiated
      */
-    MqttConnection(String serverURI, String clientId, String userName, String password, SSLContext iotHubSSLContext) throws TransportException, IllegalArgumentException
+    MqttConnection(String serverURI, String clientId, String userName, String password, SSLContext iotHubSSLContext, int keepAlivePeriod) throws TransportException, IllegalArgumentException
     {
         if (serverURI == null || clientId == null || userName == null || iotHubSSLContext == null)
         {
@@ -63,7 +62,7 @@ public class MqttConnection
             this.mqttAsyncClient = new MqttAsyncClient(serverURI, clientId, new MemoryPersistence());
             this.mqttAsyncClient.setManualAcks(true);
             this.connectionOptions = new MqttConnectOptions();
-            this.updateConnectionOptions(userName, password, iotHubSSLContext);
+            this.updateConnectionOptions(userName, password, iotHubSSLContext, keepAlivePeriod);
         }
         catch (MqttException e)
         {
@@ -84,9 +83,9 @@ public class MqttConnection
      * @param userName the user name for the mqtt broker connection.
      * @param userPassword the user password for the mqtt broker connection.
      */
-    private void updateConnectionOptions(String userName, String userPassword, SSLContext iotHubSSLContext)
+    private void updateConnectionOptions(String userName, String userPassword, SSLContext iotHubSSLContext, int keepAlivePeriod)
     {
-        this.connectionOptions.setKeepAliveInterval(KEEP_ALIVE_INTERVAL);
+        this.connectionOptions.setKeepAliveInterval(keepAlivePeriod > 0 ? keepAlivePeriod : DEFAULT_KEEP_ALIVE_INTERVAL);
         this.connectionOptions.setCleanSession(SET_CLEAN_SESSION);
         this.connectionOptions.setMqttVersion(MQTT_VERSION);
         this.connectionOptions.setUserName(userName);

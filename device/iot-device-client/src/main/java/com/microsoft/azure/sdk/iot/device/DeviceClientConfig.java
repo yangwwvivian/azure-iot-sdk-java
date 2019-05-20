@@ -66,6 +66,8 @@ public final class DeviceClientConfig
         SAS_TOKEN
     }
 
+    private int keepAlivePeriodMqtt = -1;
+
     private long operationTimeout = DEFAULT_OPERATION_TIMEOUT;
     private IotHubClientProtocol protocol;
 
@@ -608,6 +610,16 @@ public final class DeviceClientConfig
     {
         //Codes_SRS_DEVICECLIENTCONFIG_34_040: [This function shall return the saved product info.]
         return this.productInfo;
+    }
+
+    protected void setKeepAlivePeriodMqtt(int keepAlivePeriodMqtt)
+    {
+        this.keepAlivePeriodMqtt = keepAlivePeriodMqtt;
+    }
+
+    public int getKeepAlivePeriodMqtt()
+    {
+        return this.keepAlivePeriodMqtt;
     }
 
     @SuppressWarnings("unused")

@@ -26,6 +26,7 @@ public class InternalClient
     static final String SET_CERTIFICATE_PATH = "SetCertificatePath";
 	static final String SET_CERTIFICATE_AUTHORITY = "SetCertificateAuthority";
     static final String SET_SAS_TOKEN_EXPIRY_TIME = "SetSASTokenExpiryTime";
+    static final String SET_MQTT_KEEP_ALIVE_PERIOD = "SetMqttKeepAlivePeriod";
 
     DeviceClientConfig config;
     DeviceIO deviceIO;
@@ -447,6 +448,11 @@ public class InternalClient
                     setOption_SetSASTokenExpiryTime(value);
                     break;
                 }
+                case SET_MQTT_KEEP_ALIVE_PERIOD:
+                {
+                    setOption_SetMqttKeepAlivePeriod(value);
+                    break;
+                }
                 default:
                 {
                     throw new IllegalArgumentException("optionName is unknown = " + optionName);
@@ -647,6 +653,40 @@ public class InternalClient
         if (value != null)
         {
             this.config.getAuthenticationProvider().setPathToIotHubTrustedCert((String) value);
+        }
+    }
+
+    void setOption_SetMqttKeepAlivePeriod(Object value)
+    {
+        if (value instanceof Integer)
+        {
+            if (this.deviceIO.isOpen())
+            {
+                throw new IllegalStateException("Cannot change the keep alive period after the connection has already been opened");
+            }
+
+            if (this.config.getProtocol() != MQTT && this.config.getProtocol() != MQTT_WS)
+            {
+                throw new IllegalStateException("This option is only applicable to MQTT and MQTT_WS connections");
+            }
+
+            int keepAlivePeriod = (int) value;
+
+            if (keepAlivePeriod < 1)
+            {
+                throw new IllegalArgumentException("Keep alive period must be greater than 0");
+            }
+
+            if (keepAlivePeriod >= 230)
+            {
+                throw new IllegalArgumentException("Keep alive period must be less than 230");
+            }
+
+            this.config.setKeepAlivePeriodMqtt(keepAlivePeriod);
+        }
+        else
+        {
+            throw new IllegalArgumentException("value must be a long = " + value);
         }
     }
 
