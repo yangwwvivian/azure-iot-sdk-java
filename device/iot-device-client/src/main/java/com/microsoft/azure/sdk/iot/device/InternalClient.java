@@ -293,7 +293,7 @@ public class InternalClient
      * that this callback belongs to. All open()/closeNow() operations should be done on a separate thread</p>
      *
      * @param callback The callback to be fired when the connection status of the device changes. Can be null to
-     *                 unset this listener as long as the provided callbackContext is also null.
+     *                 unset this listener as long as the maven-javadoc-pluginprovided callbackContext is also null.
      * @param callbackContext a context to be passed to the callback. Can be {@code null}.
      * @throws IllegalArgumentException if provided callback is null
      */
