@@ -61,7 +61,8 @@ public class PropertyTest
     @Test (expected = IllegalArgumentException.class)
     public void constructorWithMetadataThrowsOnNullKey()
     {
-        //act
+        //actgit add -A
+        
         Property testProp = Deencapsulation.newInstance(Property.class,
                 new Class[]{String.class, Object.class, Integer.class, boolean.class},
                 null, 1, 1, false);
@@ -76,22 +77,6 @@ public class PropertyTest
     {
         //act
         Property testProp = new Property("Key with space", 1);
-
-    }
-
-    @Test (expected = IllegalArgumentException.class)
-    public void constructorThrowsOnInvalidKey_2()
-    {
-        //act
-        Property testProp = new Property("KeyWith$", 1);
-
-    }
-
-    @Test (expected = IllegalArgumentException.class)
-    public void constructorThrowsOnInvalidKey_3()
-    {
-        //act
-        Property testProp = new Property("KKeyWith.", 1);
 
     }
 
