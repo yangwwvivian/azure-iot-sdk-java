@@ -26,9 +26,19 @@ jobs:
     env:
       COMMIT_FROM: $(COMMIT_FROM)
     condition: always()
-    
-  - powershell: ./vsts/build_repo.ps1
-    displayName: 'Build and Test'
+  - task: Maven@3
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'install'
+      options: '-T 2C'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.11'
+      mavenVersionOption: 'Default'
+      mavenAuthenticateFeed: false
+      effectivePomSkip: false
+      sonarQubeRunAnalysis: false
     env:
       IOT_DPS_CONNECTION_STRING: $(WINDOWS-IOT-DPS-CONNECTION-STRING)
       IOTHUB_EVENTHUB_CONNECTION_STRING: $(WINDOWS-IOTHUB-EVENTHUB-CONNECTION-STRING)
@@ -100,8 +110,19 @@ jobs:
        127.0.0.1:2322:2322
       restartPolicy: unlessStopped      
       
-  - powershell: ./vsts/build_repo.ps1
-    displayName: 'Build and Test'
+  - task: Maven@3
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'install'
+      options: '-T 2C'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.11'
+      mavenVersionOption: 'Default'
+      mavenAuthenticateFeed: false
+      effectivePomSkip: false
+      sonarQubeRunAnalysis: false
     env:
       IOT_DPS_CONNECTION_STRING: $(LINUX-IOT-DPS-CONNECTION-STRING)
       IOTHUB_EVENTHUB_CONNECTION_STRING: $(LINUX-IOTHUB-EVENTHUB-CONNECTION-STRING)
