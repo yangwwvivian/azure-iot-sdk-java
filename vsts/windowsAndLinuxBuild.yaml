@@ -30,7 +30,7 @@ jobs:
     inputs:
       mavenPomFile: 'pom.xml'
       goals: 'install'
-      options: '-T 2C'
+      options: '-DskipITs=false -T 2C'
       publishJUnitResults: true
       testResultsFiles: '**/surefire-reports/TEST-*.xml'
       javaHomeOption: 'JDKVersion'
@@ -114,7 +114,7 @@ jobs:
     inputs:
       mavenPomFile: 'pom.xml'
       goals: 'install'
-      options: '-T 2C'
+      options: '-DskipITs=false -T 2C'
       publishJUnitResults: true
       testResultsFiles: '**/surefire-reports/TEST-*.xml'
       javaHomeOption: 'JDKVersion'
