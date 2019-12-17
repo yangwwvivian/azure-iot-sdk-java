@@ -59,37 +59,6 @@ public class AmqpFileUploadNotificationReceiveTest
         assertEquals(sasToken, _sasToken);
     }
 
-    // Tests_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_002: [The event handler shall set the member AmqpsReceiveHandler object to handle the given connection events]
-    // Tests_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_003: [The function shall create an AmqpsReceiveHandler object to handle reactor events]
-    // Tests_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_004: [The function shall invalidate the member AmqpsReceiveHandler object]
-    @Test
-    public void onReactorInitCallFlowAndInitOk() throws IOException
-    {
-        // Arrange
-        final String hostName = "aaa";
-        final String userName = "bbb";
-        final String sasToken = "ccc";
-        IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
-        AmqpFileUploadNotificationReceive amqpFileUploadNotificationReceive = new AmqpFileUploadNotificationReceive(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        amqpFileUploadNotificationReceive.open();
-        // Assert
-        new Expectations()
-        {
-            {
-                reactor = event.getReactor();
-                connection = reactor.connection(Deencapsulation.getField(amqpFileUploadNotificationReceive, "amqpReceiveHandler"));
-            }
-        };
-        // Act
-        amqpFileUploadNotificationReceive.onReactorInit(event);
-
-        // Assert
-        assertNotNull(Deencapsulation.getField(amqpFileUploadNotificationReceive, "amqpReceiveHandler"));
-
-        // Clean up
-        amqpFileUploadNotificationReceive.close();
-    }
-
     // Tests_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_005: [The function shall initialize the Proton reactor object]
     // Tests_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_006: [The function shall start the Proton reactor object]
     // Tests_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_008: [The function shall stop and free the Proton reactor object ]

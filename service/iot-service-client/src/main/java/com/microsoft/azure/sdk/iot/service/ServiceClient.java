@@ -230,7 +230,6 @@ public class ServiceClient
      *
      * @return The instance of the FeedbackReceiver
      */
-    
      public FeedbackReceiver getFeedbackReceiver()
     {
         // Codes_SRS_SERVICE_SDK_JAVA_SERVICECLIENT_12_018: [The function shall create a FeedbackReceiver object and returns with it. This API doesn't need deviceId as an input parameter]

@@ -52,9 +52,10 @@ public class FileUploadNotificationReceiver extends Receiver
 
     /**
      * Open AmqpReceive object
-     *
+     * @deprecated This method does nothing anymore
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      */
+    @Deprecated
     public void open() throws IOException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FILEUPLOADNOTIFICATIONRECEIVER_25_004: [** The function shall call open() on the member AmqpFileUploadNotificationReceive object **]**
@@ -63,9 +64,10 @@ public class FileUploadNotificationReceiver extends Receiver
 
     /**
      * Close AmqpReceive object
-     *
+     * @deprecated This method does nothing anymore
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      */
+    @Deprecated
     public void close() throws IOException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FILEUPLOADNOTIFICATIONRECEIVER_25_006: [** The function shall call close() on the member AmqpFileUploadNotificationReceive object **]**
@@ -77,10 +79,12 @@ public class FileUploadNotificationReceiver extends Receiver
      *
      * QoS for receiving file upload notifications is at least once
      *
+     * @deprecated Use {@link #receive(FileUploadNotificationListener)} instead
      * @return The received FileUploadNotification object
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      * @throws InterruptedException This exception is thrown if the receive process has been interrupted
      */
+    @Deprecated
     public FileUploadNotification receive() throws IOException, InterruptedException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FILEUPLOADNOTIFICATIONRECEIVER_25_007: [** The function shall call receive(long timeoutMs) function with the default timeout **]**
@@ -92,11 +96,13 @@ public class FileUploadNotificationReceiver extends Receiver
      *
      * QoS for receiving file upload notifications is at least once
      *
+     * @deprecated Use {@link #receive(FileUploadNotificationListener)} instead
      * @param timeoutMs The timeout in milliseconds
      * @return The received FileUploadNotification object
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      * @throws InterruptedException This exception is thrown if the receive process has been interrupted
      */
+    @Deprecated
     public FileUploadNotification receive(long timeoutMs) throws IOException, InterruptedException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FILEUPLOADNOTIFICATIONRECEIVER_25_008: [** The function shall throw IOException if the member AmqpFileUploadNotificationReceive object has not been initialized **]**
@@ -110,9 +116,10 @@ public class FileUploadNotificationReceiver extends Receiver
 
     /**
      * Async wrapper for open() operation
-     *
+     * @deprecated This method does nothing anymore
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<Void> openAsync()
     {
@@ -133,9 +140,10 @@ public class FileUploadNotificationReceiver extends Receiver
 
     /**
      * Async wrapper for close() operation
-     *
+     * @deprecated This method does nothing anymore
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<Void> closeAsync()
     {
@@ -159,8 +167,10 @@ public class FileUploadNotificationReceiver extends Receiver
      *
      * QoS for receiving file upload notifications is at least once
      *
+     * @deprecated Use {@link #receive(FileUploadNotificationListener)} instead
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<FileUploadNotification> receiveAsync()
     {
@@ -172,9 +182,10 @@ public class FileUploadNotificationReceiver extends Receiver
      * Async wrapper for receive() operation with specific timeout
      *
      * QoS for receiving file upload notifications is at least once
-     *
+     * @deprecated Use {@link #receive(FileUploadNotificationListener)} instead
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<FileUploadNotification> receiveAsync(long timeoutMs)
     {
@@ -196,4 +207,43 @@ public class FileUploadNotificationReceiver extends Receiver
         return future;
     }
 
+    /**
+     * Receive File upload notifications with specific timeout. This method does not require {@link #open()} to be called beforehand. This method will open
+     * the connection, listen for file upload notifications for the default amount of time in milliseconds({@link #DEFAULT_TIMEOUT_MS}), and then close itself. There is no need to call {@link #close()} after
+     * calling this method as this method closes itself after the timeout
+     *
+     * QoS for receiving file upload notifications is at least once
+     *
+     * @param fileUploadNotificationListener the listener that will be called each time a file upload notification is received to allow you to Complete/Abandon/Reject the notification
+     * @throws IOException This exception is thrown if the input AmqpReceive object is null
+     * @throws InterruptedException This exception is thrown if the receive process has been interrupted
+     */
+    public void receive(FileUploadNotificationListener fileUploadNotificationListener) throws IOException, InterruptedException
+    {
+        this.receive(fileUploadNotificationListener, DEFAULT_TIMEOUT_MS);
+    }
+
+    /**
+     * Receive File upload notifications with specific timeout. This method does not require {@link #open()} to be called beforehand. This method will open
+     * the connection, listen for file upload notifications for the specified amount of time in milliseconds({@link #DEFAULT_TIMEOUT_MS}), and then close itself. There is no need to call {@link #close()} after
+     * calling this method as this method closes itself after the timeout
+     *
+     * QoS for receiving file upload notifications is at least once
+     *
+     * @param timeoutMs The timeout in milliseconds
+     * @param fileUploadNotificationListener the listener that will be called each time a file upload notification is received to allow you to Complete/Abandon/Reject the notification
+     * @throws IOException This exception is thrown if the input AmqpReceive object is null
+     * @throws InterruptedException This exception is thrown if the receive process has been interrupted
+     */
+    public void receive(FileUploadNotificationListener fileUploadNotificationListener, long timeoutMs) throws IOException, InterruptedException
+    {
+        // Codes_SRS_SERVICE_SDK_JAVA_FILEUPLOADNOTIFICATIONRECEIVER_25_008: [** The function shall throw IOException if the member AmqpFileUploadNotificationReceive object has not been initialized **]**
+        if (this.amqpFileUploadNotificationReceive == null)
+        {
+            throw new IOException("AMQP receiver is not initialized");
+        }
+
+        // Codes_SRS_SERVICE_SDK_JAVA_FILEUPLOADNOTIFICATIONRECEIVER_25_009: [** The function shall call receive() on the member AmqpFileUploadNotificationReceive object and return with the result **]**
+        this.amqpFileUploadNotificationReceive.receive(timeoutMs, fileUploadNotificationListener);
+    }
 }

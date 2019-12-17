@@ -68,7 +68,6 @@ public class AmqpReceiveTest
         String sasToken = "ccc";
         IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
         AmqpReceive amqpReceive = new AmqpReceive(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        amqpReceive.open();
         // Assert
         new Expectations()
         {
@@ -79,7 +78,6 @@ public class AmqpReceiveTest
         };
         // Act
         amqpReceive.onReactorInit(event);
-        amqpReceive.close();
         // Assert
         assertNull(Deencapsulation.getField(amqpReceive, "amqpReceiveHandler"));
     }
@@ -97,7 +95,6 @@ public class AmqpReceiveTest
         IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
         int timeoutMs = 0;
         AmqpReceive amqpReceive = new AmqpReceive(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        amqpReceive.open();
         // Assert
         new Expectations()
         {
@@ -127,7 +124,6 @@ public class AmqpReceiveTest
         IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
         int timeoutMs = 1;
         AmqpReceive amqpReceive = new AmqpReceive(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        amqpReceive.open();
         // Assert
         new Expectations()
         {
@@ -137,9 +133,6 @@ public class AmqpReceiveTest
                 reactor.stop();
                 reactor.process();
                 reactor.free();
-                
-                
-                
             }
         };
         // Act
@@ -178,7 +171,6 @@ public class AmqpReceiveTest
         {
             {
                 FeedbackBatchMessage.parse(jsonData);
-                
             }
         };
         // Act

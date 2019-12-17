@@ -7,7 +7,10 @@ package com.microsoft.azure.sdk.iot.service.transport.amqps;
 
 import com.microsoft.azure.sdk.iot.deps.serializer.FileUploadNotificationParser;
 import com.microsoft.azure.sdk.iot.service.FileUploadNotification;
+import com.microsoft.azure.sdk.iot.service.FileUploadNotificationListener;
 import com.microsoft.azure.sdk.iot.service.IotHubServiceClientProtocol;
+import com.microsoft.azure.sdk.iot.service.exceptions.IotHubException;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.qpid.proton.Proton;
 import org.apache.qpid.proton.engine.BaseHandler;
 import org.apache.qpid.proton.engine.Event;
@@ -22,6 +25,7 @@ import java.util.concurrent.LinkedBlockingDeque;
  * overriding the events what are needed to handle
  * high level open, close methods and feedback received event.
  */
+@Slf4j
 public class AmqpFileUploadNotificationReceive extends BaseHandler implements AmqpFeedbackReceivedEvent
 {
     private final String hostName;
@@ -74,12 +78,7 @@ public class AmqpFileUploadNotificationReceive extends BaseHandler implements Am
      */
     public synchronized void open() throws IOException
     {
-        // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_003: [The function shall create an AmqpsReceiveHandler object to handle reactor events]
-        if (amqpReceiveHandler == null)
-        {
-            amqpReceiveHandler = new AmqpFileUploadNotificationReceivedHandler(this.hostName, this.userName, this.sasToken, this.iotHubServiceClientProtocol, this);
-            this.fileUploadNotificationQueue = new LinkedBlockingDeque<>();
-        }
+        this.fileUploadNotificationQueue = new LinkedBlockingDeque<>();
     }
 
     /**
@@ -89,9 +88,9 @@ public class AmqpFileUploadNotificationReceive extends BaseHandler implements Am
     {
         // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_004: [The function shall invalidate the member AmqpsReceiveHandler object]
         amqpReceiveHandler = null;
-        if ( fileUploadNotificationQueue!= null && !fileUploadNotificationQueue.isEmpty())
+        while (fileUploadNotificationQueue!= null && !fileUploadNotificationQueue.isEmpty())
         {
-            fileUploadNotificationQueue.clear();
+            log.warn("Closing file upload receiver is discarding file upload notification for device {}", fileUploadNotificationQueue.remove().getDeviceId());
         }
         fileUploadNotificationQueue = null;
     }
@@ -106,37 +105,53 @@ public class AmqpFileUploadNotificationReceive extends BaseHandler implements Am
      */
     public synchronized FileUploadNotification receive(long timeoutMs) throws IOException, InterruptedException
     {
-        if  (amqpReceiveHandler != null)
+        return receive(timeoutMs, null);
+    }
+
+    /**
+     * Synchronized call to receive feedback batch
+     * Hide the event based receiving mechanism from the user API
+     * @param timeoutMs The timeout in milliseconds to wait for the feedback
+     * @return The received feedback batch
+     * @throws IOException This exception is thrown if the input AmqpReceive object is null
+     * @throws InterruptedException This exception is thrown if the receive process has been interrupted
+     */
+    public synchronized FileUploadNotification receive(long timeoutMs, FileUploadNotificationListener fileUploadNotificationListener) throws IOException, InterruptedException
+    {
+        amqpReceiveHandler = new AmqpFileUploadNotificationReceivedHandler(this.hostName, this.userName, this.sasToken, this.iotHubServiceClientProtocol, this, fileUploadNotificationListener);
+        this.fileUploadNotificationQueue = new LinkedBlockingDeque<>();
+
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_005: [The function shall initialize the Proton reactor object]
+        this.reactor = Proton.reactor(this);
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_006: [The function shall start the Proton reactor object]
+        this.reactor.setTimeout(REACTOR_TIMEOUT);
+        this.reactor.start();
+
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_007: [The function shall wait for specified timeout to check for any feedback message]
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime + timeoutMs;
+
+        while(this.reactor.process())
         {
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_005: [The function shall initialize the Proton reactor object]
-            this.reactor = Proton.reactor(this);
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_006: [The function shall start the Proton reactor object]
-            this.reactor.setTimeout(REACTOR_TIMEOUT);
-            this.reactor.start();
-            
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_007: [The function shall wait for specified timeout to check for any feedback message]
-            long startTime = System.currentTimeMillis();
-            long endTime = startTime + timeoutMs;
-            
-            while(this.reactor.process())
+            if (System.currentTimeMillis() > endTime)
             {
-                if (System.currentTimeMillis() > endTime)
-                {
-                    break;
-                }
+                break;
             }
-            
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_008: [The function shall stop and free the Proton reactor object]
-            this.reactor.stop();
-            this.reactor.process();
-            this.reactor.free();
-            this.amqpReceiveHandler.receiveComplete();
         }
-        else
+
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_008: [The function shall stop and free the Proton reactor object]
+        this.reactor.stop();
+        this.reactor.process();
+        this.reactor.free();
+        try
         {
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_009: [The function shall throw IOException if the send handler object is not initialized]
-            throw new IOException("receive handler is not initialized. call open before receive");
+            this.amqpReceiveHandler.validateConnectionWasSuccessful();
         }
+        catch (IotHubException e)
+        {
+            throw new IOException(e);
+        }
+
         if (!fileUploadNotificationQueue.isEmpty())
         {
             return fileUploadNotificationQueue.remove();
@@ -155,8 +170,6 @@ public class AmqpFileUploadNotificationReceive extends BaseHandler implements Am
      */
     public synchronized void onFeedbackReceived(String feedbackJson)
     {
-        // Codes_SRS_SERVICE_SDK_JAVA_AMQPFILEUPLOADNOTIFICATIONRECEIVE_25_010: [The function shall parse the received Json string to FeedbackBath object]
-
         try
         {
             FileUploadNotificationParser notificationParser = new FileUploadNotificationParser(feedbackJson);
@@ -174,7 +187,7 @@ public class AmqpFileUploadNotificationReceive extends BaseHandler implements Am
         catch (Exception e)
         {
             // this should never happen. However if it does, proton can't handle it. So guard against throwing it at proton.
-            System.out.println("Service threw something mysteriously dangerous, message abandoned.");
+            log.warn("Service threw something mysteriously dangerous, message abandoned.");
         }
     }
 }

@@ -7,7 +7,9 @@ package com.microsoft.azure.sdk.iot.service.transport.amqps;
 
 import com.microsoft.azure.sdk.iot.service.FeedbackBatch;
 import com.microsoft.azure.sdk.iot.service.FeedbackBatchMessage;
+import com.microsoft.azure.sdk.iot.service.FeedbackBatchMessageListener;
 import com.microsoft.azure.sdk.iot.service.IotHubServiceClientProtocol;
+import com.microsoft.azure.sdk.iot.service.exceptions.IotHubException;
 import org.apache.qpid.proton.Proton;
 import org.apache.qpid.proton.engine.BaseHandler;
 import org.apache.qpid.proton.engine.Event;
@@ -65,24 +67,6 @@ public class AmqpReceive extends BaseHandler implements AmqpFeedbackReceivedEven
     }
 
     /**
-     * Create AmqpsReceiveHandler and store it in a member variable
-     */
-    public void open()
-    {
-        // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_003: [The function shall create an AmqpsReceiveHandler object to handle reactor events]
-        amqpReceiveHandler = new AmqpFeedbackReceivedHandler(this.hostName, this.userName, this.sasToken, this.iotHubServiceClientProtocol, this);
-    }
-
-    /**
-     * Invalidate AmqpsReceiveHandler member variable
-     */
-    public void close()
-    {
-        // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_004: [The function shall invalidate the member AmqpsReceiveHandler object]
-        amqpReceiveHandler = null;
-    }
-
-    /**
      * Synchronized call to receive feedback batch
      * Hide the event based receiving mechanism from the user API
      * @param timeoutMs The timeout in milliseconds to wait for the feedback
@@ -92,34 +76,47 @@ public class AmqpReceive extends BaseHandler implements AmqpFeedbackReceivedEven
      */
     public synchronized FeedbackBatch receive(long timeoutMs) throws IOException, InterruptedException
     {
+        return receive(timeoutMs, null);
+    }
+
+    /**
+     * Synchronized call to receive feedback batch
+     * Hide the event based receiving mechanism from the user API
+     * @param timeoutMs The timeout in milliseconds to wait for the feedback
+     * @return The received feedback batch
+     * @throws IOException This exception is thrown if the input AmqpReceive object is null
+     */
+    public synchronized FeedbackBatch receive(long timeoutMs, FeedbackBatchMessageListener feedbackBatchMessageListener) throws IOException
+    {
         feedbackBatch = null;
-        if  (amqpReceiveHandler != null)
+        amqpReceiveHandler = new AmqpFeedbackReceivedHandler(this.hostName, this.userName, this.sasToken, this.iotHubServiceClientProtocol, this, feedbackBatchMessageListener);
+
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_005: [The function shall initialize the Proton reactor object]
+        this.reactor = Proton.reactor(this);
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_006: [The function shall start the Proton reactor object]
+        this.reactor.setTimeout(REACTOR_TIMEOUT);
+        this.reactor.start();
+
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_007: [The function shall wait for specified timeout to check for any feedback message]
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime + timeoutMs;
+
+        while(this.reactor.process())
         {
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_005: [The function shall initialize the Proton reactor object]
-            this.reactor = Proton.reactor(this);
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_006: [The function shall start the Proton reactor object]
-            this.reactor.setTimeout(REACTOR_TIMEOUT);
-            this.reactor.start();
-            
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_007: [The function shall wait for specified timeout to check for any feedback message]
-            long startTime = System.currentTimeMillis();
-            long endTime = startTime + timeoutMs;
-            
-            while(this.reactor.process())
-            {
-                if (System.currentTimeMillis() > endTime) break;
-            }
-            
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_008: [The function shall stop and free the Proton reactor object]
-            this.reactor.stop();
-            this.reactor.process();
-            this.reactor.free();   
-            this.amqpReceiveHandler.receiveComplete();
+            if (System.currentTimeMillis() > endTime) break;
         }
-        else
+
+        // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_008: [The function shall stop and free the Proton reactor object]
+        this.reactor.stop();
+        this.reactor.process();
+        this.reactor.free();
+        try
         {
-            // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_008: [The function shall throw IOException if the send handler object is not initialized]
-            throw new IOException("receive handler is not initialized. call open before receive");
+            this.amqpReceiveHandler.validateConnectionWasSuccessful();
+        }
+        catch (IotHubException e)
+        {
+            throw new IOException(e);
         }
         return feedbackBatch;
     }
@@ -134,7 +131,5 @@ public class AmqpReceive extends BaseHandler implements AmqpFeedbackReceivedEven
     {
         // Codes_SRS_SERVICE_SDK_JAVA_AMQPRECEIVE_12_010: [The function shall parse the received Json string to FeedbackBath object]
         feedbackBatch = FeedbackBatchMessage.parse(feedbackJson);
-    
     }
-
 }

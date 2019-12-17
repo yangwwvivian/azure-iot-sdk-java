@@ -132,8 +132,8 @@ public class AmqpSend extends BaseHandler
                 // Codes_SRS_SERVICE_SDK_JAVA_AMQPSEND_28_003: [The function shall start the Proton reactor object]
                 this.reactor.run();
                 this.reactor.free();
-                // Codes_SRS_SERVICE_SDK_JAVA_AMQPSEND_28_004: [** The function shall call sendComplete to identify the status of sent message and throws exception if thrown by sendComplete **]**
-                amqpSendHandler.sendComplete();
+                // Codes_SRS_SERVICE_SDK_JAVA_AMQPSEND_28_004: [** The function shall call validateConnectionWasSuccessful to identify the status of sent message and throws exception if thrown by validateConnectionWasSuccessful **]**
+                amqpSendHandler.validateConnectionWasSuccessful();
             }
             else
             {

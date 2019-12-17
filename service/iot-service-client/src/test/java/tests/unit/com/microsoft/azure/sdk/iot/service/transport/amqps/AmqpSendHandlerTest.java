@@ -47,7 +47,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -501,9 +500,7 @@ public class AmqpSendHandlerTest
         IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
         createProtonObjects();
         AmqpSendHandler amqpSendHandler = new AmqpSendHandler(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        Queue<Message> testMessagesToBeSent = new LinkedBlockingQueue<>();
-        testMessagesToBeSent.add(messageWithException);
-        Deencapsulation.setField(amqpSendHandler,"messagesToBeSent", testMessagesToBeSent );
+        Deencapsulation.setField(amqpSendHandler,"messageToBeSent", messageWithException );
         // Assert
         new Expectations()
         {
@@ -545,8 +542,6 @@ public class AmqpSendHandlerTest
         new Expectations()
         {
             {
-                mockedEvent.getType();
-                result = Event.Type.DELIVERY;
                 mockedEvent.getDelivery();
                 result = mockedDelivery;
                 mockedDelivery.getRemoteState();
@@ -577,9 +572,7 @@ public class AmqpSendHandlerTest
         String sasToken = "ccc";
         IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
         AmqpSendHandler amqpSendHandler = new AmqpSendHandler(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        Queue<AmqpResponseVerification> testsendStatusQueue = new LinkedBlockingQueue<>();
-        testsendStatusQueue.add(mockedVerification);
-        Deencapsulation.setField(amqpSendHandler,"sendStatusQueue", testsendStatusQueue );
+        Deencapsulation.setField(amqpSendHandler,"deliveryAcknowledgement", mockedVerification);
         Deencapsulation.setField(amqpSendHandler, "connectionWasOpened", true);
 
         // Assert
@@ -591,7 +584,7 @@ public class AmqpSendHandlerTest
             }
         };
         // Act
-        amqpSendHandler.sendComplete();
+        amqpSendHandler.validateConnectionWasSuccessful();
     }
 
     //Tests_SRS_SERVICE_SDK_JAVA_AMQPSENDHANDLER_25_031: [** The event handler shall get the exception from the response and throw is it is not null **]**
@@ -605,9 +598,7 @@ public class AmqpSendHandlerTest
         String sasToken = "ccc";
         IotHubServiceClientProtocol iotHubServiceClientProtocol = IotHubServiceClientProtocol.AMQPS;
         AmqpSendHandler amqpSendHandler = new AmqpSendHandler(hostName, userName, sasToken, iotHubServiceClientProtocol);
-        Queue<AmqpResponseVerification> testsendStatusQueue = new LinkedBlockingQueue<>();
-        testsendStatusQueue.add(mockedVerification);
-        Deencapsulation.setField(amqpSendHandler,"sendStatusQueue", testsendStatusQueue );
+        Deencapsulation.setField(amqpSendHandler,"deliveryAcknowledgement", mockedVerification );
         Deencapsulation.setField(amqpSendHandler, "connectionWasOpened", true);
 
         // Assert
@@ -619,7 +610,7 @@ public class AmqpSendHandlerTest
             }
         };
         // Act
-        amqpSendHandler.sendComplete();
+        amqpSendHandler.validateConnectionWasSuccessful();
 
     }
 
@@ -639,7 +630,7 @@ public class AmqpSendHandlerTest
         amqpSendHandler.onTransportError(mockedEvent);
 
         // Act
-        amqpSendHandler.sendComplete();
+        amqpSendHandler.validateConnectionWasSuccessful();
 
     }
 
@@ -708,7 +699,7 @@ public class AmqpSendHandlerTest
         Deencapsulation.setField(amqpSendHandler, "savedException", new SSLHandshakeException("some nonsense exception"));
 
         // Act
-        amqpSendHandler.sendComplete();
+        amqpSendHandler.validateConnectionWasSuccessful();
     }
 
     //Tests_SRS_SERVICE_SDK_JAVA_AMQPSENDHANDLER_34_034: [if 'connectionWasOpened' is false, or 'isConnectionError' is true, this function shall throw an IOException]
@@ -726,7 +717,7 @@ public class AmqpSendHandlerTest
         Deencapsulation.setField(amqpSendHandler, "savedException", null);
 
         // Act
-        amqpSendHandler.sendComplete();
+        amqpSendHandler.validateConnectionWasSuccessful();
     }
 
     private void createProtonObjects()

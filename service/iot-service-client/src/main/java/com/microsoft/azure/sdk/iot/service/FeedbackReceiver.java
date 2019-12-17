@@ -21,7 +21,6 @@ public class FeedbackReceiver extends Receiver
     private final long DEFAULT_TIMEOUT_MS = 60000;
     private final ExecutorService executor = Executors.newFixedThreadPool(10);
 
-    private String deviceId;
     private AmqpReceive amqpReceive;
 
     /**
@@ -53,11 +52,7 @@ public class FeedbackReceiver extends Receiver
         {
             throw new IllegalArgumentException("deviceId cannot be null or empty");
         }
-        
-               
-        
-        // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_002: [The constructor shall store deviceId]
-        this.deviceId = deviceId;
+
         // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_003: [The constructor shall create a new instance of AmqpReceive object]
         this.amqpReceive = new AmqpReceive(hostName, userName, sasToken, iotHubServiceClientProtocol);
     }
@@ -99,9 +94,10 @@ public class FeedbackReceiver extends Receiver
         
     /**
      * Open AmqpReceive object
-     *
+     * @deprecated {@link #receive(FeedbackBatchMessageListener)} does not require open/close. Only deprecated receive methods still require this method
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      */
+    @Deprecated
     public void open() throws IOException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_004: [The function shall throw IOException if the member AMQPReceive object has not been initialized]
@@ -109,15 +105,14 @@ public class FeedbackReceiver extends Receiver
         {
             throw new IOException("AMQP receiver is not initialized");
         }
-        // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_005: [The function shall call open() on the member AMQPReceive object]
-        this.amqpReceive.open();
     }
 
     /**
      * Close AmqpReceive object
-     *
+     * @deprecated {@link #receive(FeedbackBatchMessageListener)} does not require open/close. Only deprecated receive methods still require this method
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      */
+    @Deprecated
     public void close() throws IOException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_006: [The function shall throw IOException if the member AMQPReceive object has not been initialized]
@@ -125,17 +120,16 @@ public class FeedbackReceiver extends Receiver
         {
             throw new IOException("AMQP receiver is not initialized");
         }
-        // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_007: [The function shall call close() on the member AMQPReceive object]
-        this.amqpReceive.close();
     }
 
     /**
      * Receive FeedbackBatch with default timeout
-     *
+     * @deprecated Use {@link #receive(FeedbackBatchMessageListener)} instead
      * @return The received FeedbackBatch object
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      * @throws InterruptedException This exception is thrown if the receive process has been interrupted
      */
+    @Deprecated
     public FeedbackBatch receive() throws IOException, InterruptedException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_008: [The function shall call receive(long timeoutMs) function with the default timeout]
@@ -144,11 +138,13 @@ public class FeedbackReceiver extends Receiver
 
     /**
      * Receive FeedbackBatch with specific timeout
+     * @deprecated Use {@link #receive(FeedbackBatchMessageListener)} instead
      * @param timeoutMs The timeout in milliseconds
      * @return The received FeedbackBatch object
      * @throws IOException This exception is thrown if the input AmqpReceive object is null
      * @throws InterruptedException This exception is thrown if the receive process has been interrupted
      */
+    @Deprecated
     public FeedbackBatch receive(long timeoutMs) throws IOException, InterruptedException
     {
         // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_009: [The function shall throw IOException if the member AMQPReceive object has not been initialized]
@@ -162,9 +158,10 @@ public class FeedbackReceiver extends Receiver
 
     /**
      * Async wrapper for open() operation
-     *
+     * @deprecated {@link #receive(FeedbackBatchMessageListener)} does not require open/close. Only deprecated receive methods still require this method
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<Void> openAsync()
     {
@@ -185,9 +182,10 @@ public class FeedbackReceiver extends Receiver
 
     /**
      * Async wrapper for close() operation
-     *
+     * @deprecated {@link #receive(FeedbackBatchMessageListener)} does not require open/close. Only deprecated receive methods still require this method
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<Void> closeAsync()
     {
@@ -208,9 +206,10 @@ public class FeedbackReceiver extends Receiver
 
     /**
      * Async wrapper for receive() operation with default timeout
-     *
+     * @deprecated Use {@link #receive(FeedbackBatchMessageListener)} instead
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<FeedbackBatch> receiveAsync()
     {
@@ -220,9 +219,10 @@ public class FeedbackReceiver extends Receiver
 
     /**
      * Async wrapper for receive() operation with specific timeout
-     *
+     * @deprecated Use {@link #receive(FeedbackBatchMessageListener)} instead
      * @return The future object for the requested operation
      */
+    @Deprecated
     @Override
     public CompletableFuture<FeedbackBatch> receiveAsync(long timeoutMs)
     {
@@ -242,5 +242,38 @@ public class FeedbackReceiver extends Receiver
         }
         });
         return future;
+    }
+
+    /**
+     * Receive FeedbackBatch with specific timeout. This method does not require {@link #open()} to be called beforehand. This method will open
+     * the connection, listen for feedback messages for the default amount of time in milliseconds({@link #DEFAULT_TIMEOUT_MS}), and then close itself. There is no need to call {@link #close()} after
+     * calling this method as this method closes itself after the timeout
+     *
+     * QoS for receiving file upload notifications is at least once
+     *
+     * @throws IOException This exception is thrown if the amqps connection cannot be established
+     * @throws InterruptedException This exception is thrown if the receive process has been interrupted
+     */
+    public void receive(FeedbackBatchMessageListener feedbackBatchMessageListener) throws IOException, InterruptedException
+    {
+        // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_008: [The function shall call receive(long timeoutMs) function with the default timeout]
+        receive(feedbackBatchMessageListener, DEFAULT_TIMEOUT_MS);
+    }
+
+    /**
+     * Receive FeedbackBatch with specific timeout. This method does not require {@link #open()} to be called beforehand. This method will open
+     * the connection, listen for feedback messages for the specified amount of time in milliseconds, and then close itself. There is no need to call {@link #close()} after
+     * calling this method as this method closes itself after the timeout
+     *
+     * QoS for receiving file upload notifications is at least once
+     *
+     * @param timeoutMs The timeout in milliseconds
+     * @throws IOException This exception is thrown if the amqps connection cannot be established
+     * @throws InterruptedException This exception is thrown if the receive process has been interrupted
+     */
+    public void receive(FeedbackBatchMessageListener feedbackBatchMessageListener, long timeoutMs) throws IOException, InterruptedException
+    {
+        // Codes_SRS_SERVICE_SDK_JAVA_FEEDBACKRECEIVER_12_010: [The function shall call receive() on the member AMQPReceive object and return with the result]
+        this.amqpReceive.receive(timeoutMs, feedbackBatchMessageListener);
     }
 }
