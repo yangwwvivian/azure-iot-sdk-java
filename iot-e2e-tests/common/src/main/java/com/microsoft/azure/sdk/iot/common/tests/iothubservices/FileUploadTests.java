@@ -26,7 +26,6 @@ import java.net.URL;
 import java.security.GeneralSecurityException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.microsoft.azure.sdk.iot.common.helpers.CorrelationDetailsLoggingAssert.buildExceptionMessage;
 import static com.microsoft.azure.sdk.iot.common.tests.iothubservices.FileUploadTests.STATUS.FAILURE;
@@ -40,15 +39,14 @@ import static org.junit.Assert.*;
  * Test class containing all tests to be run on JVM and android pertaining to FileUpload. Class needs to be extended
  * in order to run these tests as that extended class handles setting connection strings and certificate generation
  */
-public class FileUploadTests extends IntegrationTest
+public class FileUploadTests extends IntegrationTest implements FileUploadNotificationListener
 {
     // Max time to wait to see it on Hub
-    private static final long MAXIMUM_TIME_TO_WAIT_FOR_IOTHUB = 180000; // 3 minutes
-    private static final long FILE_UPLOAD_QUEUE_POLLING_INTERVAL = 4000; // 4 sec
+    private static final long FILE_UPLOAD_NOTIFICATION_TIMEOUT = 300000; // 5 minutes
     private static final long MAXIMUM_TIME_TO_WAIT_FOR_CALLBACK = 5000; // 5 sec
 
     //Max time to wait before timing out test
-    private static final long MAX_MILLISECS_TIMEOUT_KILL_TEST = MAXIMUM_TIME_TO_WAIT_FOR_IOTHUB + 50000; // 50 secs
+    private static final long MAX_MILLISECS_TIMEOUT_KILL_TEST = FILE_UPLOAD_NOTIFICATION_TIMEOUT + 50000; // 50 secs
 
     //Max devices to test
     private static final Integer MAX_FILES_TO_UPLOAD = 5;
@@ -73,6 +71,7 @@ public class FileUploadTests extends IntegrationTest
     protected static int testProxyPort = 8897;
     protected static final String testProxyUser = "proxyUsername";
     protected static final char[] testProxyPass = "1234".toCharArray();
+    protected static final ArrayList<String> testDeviceIds = new ArrayList<>();
 
     static Set<FileUploadNotification> activeFileUploadNotifications = new ConcurrentSkipListSet<>(new Comparator<FileUploadNotification>()
     {
@@ -111,9 +110,6 @@ public class FileUploadTests extends IntegrationTest
             return 0;
         }
     });
-    static Thread fileUploadNotificationListenerThread;
-    static AtomicBoolean hasFileUploadNotificationReceiverThreadFailed = new AtomicBoolean(false);
-    static Exception fileUploadNotificationReceiverThreadException = null;
 
     public static Collection inputs() throws Exception
     {
@@ -127,12 +123,11 @@ public class FileUploadTests extends IntegrationTest
 
         serviceClient = ServiceClient.createFromConnectionString(iotHubConnectionString, IotHubServiceClientProtocol.AMQPS);
         serviceClient.open();
+        fileUploadNotificationReceiver = serviceClient.getFileUploadNotificationReceiver();
 
         publicKeyCertificate = publicK;
         privateKeyCertificate = privateK;
         x509Thumbprint = thumbprint;
-
-        fileUploadNotificationListenerThread = createFileUploadNotificationListenerThread();
 
         return Arrays.asList(
                 new Object[][]
@@ -153,6 +148,23 @@ public class FileUploadTests extends IntegrationTest
     }
 
     public FileUploadTestInstance testInstance;
+
+    @Override
+    public DeliveryOutcome onFileUploadNotificationReceived(FileUploadNotification fileUploadNotification)
+    {
+        if (testDeviceIds.contains(fileUploadNotification.getDeviceId()))
+        {
+            System.out.println("Completing file upload notification belonging to device " + fileUploadNotification.getDeviceId());
+            activeFileUploadNotifications.add(fileUploadNotification);
+            return DeliveryOutcome.Complete;
+        }
+
+        System.out.println("Abandoning file upload notification belonging to device " + fileUploadNotification.getDeviceId() + " as it did not belong to this test process");
+
+        //If the notification was from a device that this test isn't managing, then it should be abandoned so that the message
+        // is re-queued until it gets sent to the correct
+        return DeliveryOutcome.Abandon;
+    }
 
     public class FileUploadTestInstance
     {
@@ -229,62 +241,6 @@ public class FileUploadTests extends IntegrationTest
         }
     }
 
-    private static class FileUploadNotificationListener implements Runnable
-    {
-        @Override
-        public void run()
-        {
-            try
-            {
-                // flush pending notifications before every test to prevent random test failures
-                // because of notifications received from other failed test
-                fileUploadNotificationReceiver = serviceClient.getFileUploadNotificationReceiver();
-
-                // Start receiver for a test
-                fileUploadNotificationReceiver.open();
-
-                while (true)
-                {
-                    FileUploadNotification notification = fileUploadNotificationReceiver.receive(FILE_UPLOAD_QUEUE_POLLING_INTERVAL);
-                    if (notification != null)
-                    {
-                        System.out.println("Received notification for device " + notification.getDeviceId());
-                        activeFileUploadNotifications.add(notification);
-                    }
-                }
-            }
-            catch (IOException e)
-            {
-                fileUploadNotificationReceiverThreadException = e;
-                hasFileUploadNotificationReceiverThreadFailed.set(true);
-            }
-            catch (InterruptedException e)
-            {
-                try
-                {
-                    fileUploadNotificationReceiver.close();
-                }
-                catch (IOException e1)
-                {
-                    fileUploadNotificationReceiverThreadException = e1;
-                    hasFileUploadNotificationReceiverThreadFailed.set(true);
-                }
-            }
-        }
-    }
-
-    /**
-     * Spawn a thread to constantly listen for file upload notifications. When one is found, it adds it to the active set of
-     * notifications for the tests in this class to consume.
-     */
-    private static Thread createFileUploadNotificationListenerThread()
-    {
-        FileUploadNotificationListener fileUploadNotificationListener = new FileUploadNotificationListener();
-        fileUploadNotificationListenerThread = new Thread(fileUploadNotificationListener);
-        fileUploadNotificationListenerThread.start();
-        return fileUploadNotificationListenerThread;
-    }
-
     @Before
     public void setUpFileUploadState() throws Exception
     {
@@ -318,9 +274,6 @@ public class FileUploadTests extends IntegrationTest
         }
 
         serviceClient = null;
-
-        fileUploadNotificationListenerThread.interrupt();
-        fileUploadNotificationListenerThread.stop();
     }
 
     @BeforeClass
@@ -344,6 +297,7 @@ public class FileUploadTests extends IntegrationTest
         if (testInstance.authenticationType == AuthenticationType.SAS)
         {
             String deviceId = "java-file-upload-e2e-test-".concat(UUID.randomUUID().toString());
+            testDeviceIds.add(deviceId);
             Device scDevice = com.microsoft.azure.sdk.iot.service.Device.createFromId(deviceId, null, null);
             scDevice = Tools.addDeviceWithRetry(registryManager, scDevice);
 
@@ -353,6 +307,7 @@ public class FileUploadTests extends IntegrationTest
         else if (testInstance.authenticationType == AuthenticationType.SELF_SIGNED)
         {
             String deviceIdX509 = "java-file-upload-e2e-test-x509-".concat(UUID.randomUUID().toString());
+            testDeviceIds.add(deviceIdX509);
             Device scDevicex509 = com.microsoft.azure.sdk.iot.service.Device.createDevice(deviceIdX509, AuthenticationType.SELF_SIGNED);
             scDevicex509.setThumbprintFinal(x509Thumbprint, x509Thumbprint);
             scDevicex509 = Tools.addDeviceWithRetry(registryManager, scDevicex509);
@@ -505,13 +460,38 @@ public class FileUploadTests extends IntegrationTest
         tearDownDeviceClient(deviceClient);
     }
 
+    private class FileUploadNotificationReceiverRunner implements Runnable
+    {
+        public FileUploadNotificationReceiverRunner(FileUploadNotificationListener fileUploadNotificationListener, int receivePeriod)
+        {
+            this.listener = fileUploadNotificationListener;
+            this.receivePeriod = receivePeriod;
+        }
+
+        FileUploadNotificationListener listener;
+        int receivePeriod;
+
+        @Override
+        public void run() {
+            try {
+            }
+            catch (Exception e) {
+                //Thread will be spawned again
+                e.printStackTrace();
+            }
+        }
+    }
+
     private FileUploadNotification getFileUploadNotificationForThisDevice(DeviceClient deviceClient, int expectedBlobSizeInBytes) throws IOException, InterruptedException
     {
         //wait until the notification is added to the set of retrieved notifications, or until a timeout
         long startTime = System.currentTimeMillis();
         FileUploadNotification matchingNotification = null;
+        int receivePeriod = 2000;
         do
         {
+            fileUploadNotificationReceiver.receive(this, receivePeriod);
+
             for (FileUploadNotification notification : activeFileUploadNotifications)
             {
                 if (notification.getDeviceId().equals(deviceClient.getConfig().getDeviceId()))
@@ -523,26 +503,10 @@ public class FileUploadTests extends IntegrationTest
                 }
             }
 
-            if (System.currentTimeMillis() - startTime > MAXIMUM_TIME_TO_WAIT_FOR_IOTHUB)
+            if (System.currentTimeMillis() - startTime > FILE_UPLOAD_NOTIFICATION_TIMEOUT)
             {
                 Assert.fail(CorrelationDetailsLoggingAssert.buildExceptionMessage("Timed out waiting for file upload notification for device", deviceClient));
             }
-
-            //If the notification polling thread has died, the test cannot complete
-            if (hasFileUploadNotificationReceiverThreadFailed.get())
-            {
-                if (fileUploadNotificationReceiverThreadException != null)
-                {
-                    Assert.fail(CorrelationDetailsLoggingAssert.buildExceptionMessage("File upload notification listener thread has died from exception " + Tools.getStackTraceFromThrowable(fileUploadNotificationReceiverThreadException), deviceClient));
-                }
-                else
-                {
-                    Assert.fail(CorrelationDetailsLoggingAssert.buildExceptionMessage("File upload notification listener thread has died from an unknown exception", deviceClient));
-                }
-            }
-
-            Thread.sleep(2000);
-
         } while (matchingNotification == null);
 
         if (matchingNotification != null)
