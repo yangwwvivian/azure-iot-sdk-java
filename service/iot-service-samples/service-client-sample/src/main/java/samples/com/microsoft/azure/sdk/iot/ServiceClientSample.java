@@ -49,8 +49,6 @@ public class ServiceClientSample
         System.out.println("********* Starting ServiceClient sample...");
 
         openServiceClient();
-        openFeedbackReceiver();
-        openFileUploadNotificationReceiver();
 
         // Sending multiple commands
         try
@@ -69,29 +67,9 @@ public class ServiceClientSample
         }
 
         // Receive FileUploadNotification
-        CompletableFuture<FileUploadNotification> fileUploadNotificationCompletableFuture = fileUploadNotificationReceiver.receiveAsync(RECEIVER_TIMEOUT);
-        FileUploadNotification fileUploadNotification = fileUploadNotificationCompletableFuture.get();
+        fileUploadNotificationReceiver = serviceClient.getFileUploadNotificationReceiver();
+        fileUploadNotificationReceiver.receive(new FileUploadNotificationListenerImpl(), RECEIVER_TIMEOUT);
 
-        if (fileUploadNotification != null)
-        {
-            System.out.println("File Upload notification received");
-            System.out.println("Device Id : " + fileUploadNotification.getDeviceId());
-            System.out.println("Blob Uri: " + fileUploadNotification.getBlobUri());
-            System.out.println("Blob Name: " + fileUploadNotification.getBlobName());
-            System.out.println("Last Updated : " + fileUploadNotification.getLastUpdatedTimeDate());
-            System.out.println("Blob Size (Bytes): " + fileUploadNotification.getBlobSizeInBytes());
-            System.out.println("Enqueued Time: " + fileUploadNotification.getEnqueuedTimeUtcDate());
-        }
-        else
-        {
-            System.out.println("No file upload notification received !");
-            closeFileUploadNotificationReceiver();
-            closeServiceClient();
-            System.out.println("********* Shutting down ServiceClient sample...");
-        }
-
-        closeFileUploadNotificationReceiver();
-        closeFeedbackReceiver();
         closeServiceClient();
 
         System.out.println("********* Shutting down ServiceClient sample...");
@@ -117,52 +95,7 @@ public class ServiceClientSample
         System.out.println("********* Successfully closed ServiceClient.");
     }
 
-    protected static void openFeedbackReceiver() throws ExecutionException, InterruptedException
-    {
-        if (serviceClient != null)
-        {
-            feedbackReceiver = serviceClient.getFeedbackReceiver();
-            if (feedbackReceiver != null)
-            {
-                CompletableFuture<Void> future = feedbackReceiver.openAsync();
-                future.get();
-                System.out.println("********* Successfully opened FeedbackReceiver...");
-            }
-        }
-    }
-
-    protected static void closeFeedbackReceiver() throws ExecutionException, InterruptedException
-    {
-        CompletableFuture<Void> future = feedbackReceiver.closeAsync();
-        future.get();
-        feedbackReceiver = null;
-        System.out.println("********* Successfully closed FeedbackReceiver.");
-    }
-
-
-    protected static void openFileUploadNotificationReceiver() throws ExecutionException, InterruptedException
-    {
-        if (serviceClient != null)
-        {
-            fileUploadNotificationReceiver = serviceClient.getFileUploadNotificationReceiver();
-            if (fileUploadNotificationReceiver != null)
-            {
-                CompletableFuture<Void> future = fileUploadNotificationReceiver.openAsync();
-                future.get();
-                System.out.println("********* Successfully opened fileUploadNotificationReceiver...");
-            }
-        }
-    }
-
-    protected static void closeFileUploadNotificationReceiver() throws ExecutionException, InterruptedException
-    {
-        CompletableFuture<Void> future = fileUploadNotificationReceiver.closeAsync();
-        future.get();
-        fileUploadNotificationReceiver = null;
-        System.out.println("********* Successfully closed fileUploadNotificationReceiver.");
-    }
-    
-     protected static void sendMultipleCommandsAndReadFromTheFeedbackReceiver() throws ExecutionException, InterruptedException, UnsupportedEncodingException
+     protected static void sendMultipleCommandsAndReadFromTheFeedbackReceiver() throws ExecutionException, InterruptedException, IOException
      {
         List<CompletableFuture<Void>> futureList = new ArrayList<CompletableFuture<Void>>();
         Map<String, String> propertiesToSend = new HashMap<String, String>();
@@ -212,24 +145,46 @@ public class ServiceClientSample
         System.out.println("All sends completed !");
 
         System.out.println("Waiting for the feedback...");
-        CompletableFuture<FeedbackBatch> future = feedbackReceiver.receiveAsync(); // Default timeout is 60 seconds. [DEFAULT_TIMEOUT_MS = 60000]
-        FeedbackBatch feedbackBatch = future.get(); 
+        feedbackReceiver.receive(new FeedbackBatchMessageListenerImpl()); // Default timeout is 60 seconds. [DEFAULT_TIMEOUT_MS = 60000]
+    }
 
-        if (feedbackBatch != null) // check if any feedback was received
+    public static class FeedbackBatchMessageListenerImpl implements FeedbackBatchMessageListener
+    {
+        @Override
+        public DeliveryOutcome onFeedbackMessageReceived(FeedbackBatch feedbackBatch)
         {
             System.out.println(" Feedback received, feedback time: " + feedbackBatch.getEnqueuedTimeUtc());
             System.out.println(" Record size: " + feedbackBatch.getRecords().size());
-            
+
             for (int i=0; i < feedbackBatch.getRecords().size(); i++)
             {
                 System.out.println(" Messsage id : " + feedbackBatch.getRecords().get(i).getOriginalMessageId());
                 System.out.println(" Device id : " + feedbackBatch.getRecords().get(i).getDeviceId());
                 System.out.println(" Status description : " + feedbackBatch.getRecords().get(i).getDescription());
             }
-        }
-        else
-        {
-            System.out.println("No feedback received");
+
+            // Acknowledge the feedback batch delivery as a success. This will remove the feedback batch from the hub side queue so it won't be sent again
+            return DeliveryOutcome.Complete;
         }
     }
+
+    public static class FileUploadNotificationListenerImpl implements FileUploadNotificationListener
+    {
+        @Override
+        public DeliveryOutcome onFileUploadNotificationReceived(FileUploadNotification fileUploadNotification)
+        {
+            System.out.println("File Upload notification received");
+            System.out.println("Device Id : " + fileUploadNotification.getDeviceId());
+            System.out.println("Blob Uri: " + fileUploadNotification.getBlobUri());
+            System.out.println("Blob Name: " + fileUploadNotification.getBlobName());
+            System.out.println("Last Updated : " + fileUploadNotification.getLastUpdatedTimeDate());
+            System.out.println("Blob Size (Bytes): " + fileUploadNotification.getBlobSizeInBytes());
+            System.out.println("Enqueued Time: " + fileUploadNotification.getEnqueuedTimeUtcDate());
+
+            // Acknowledge the file upload notification delivery as a success. This will remove the file upload notification from the hub side queue so it won't be sent again
+            return null;
+        }
+    }
+
+
 }
